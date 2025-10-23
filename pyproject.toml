@@ -1,0 +1,16 @@
+[project]
+name = "invoicegenerator"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "streamlit",
+    "fastapi",
+    "uvicorn",
+    "openai",
+    "pdfkit",
+    "jinja2",
+    "openai-agents>=0.4.1",
+    "pycountry>=24.6.1",
+]

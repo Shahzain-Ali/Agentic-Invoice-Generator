@@ -1,0 +1,424 @@
+{
+  "name": "Automated Invoice Generator Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.0-flash",
+        "options": {}
+      },
+      "id": "c853615c-5c01-4636-982a-48be30a4ac88",
+      "name": "Google Gemini Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -128,
+        672
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "8edeUx1tgCJZVFsk",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"additionalProperties\": false,\n  \"properties\": {\n      \"client_name\": { \"type\": \"string\" },\n      \"address\": { \"type\": \"string\" },\n      \"email\": { \"type\": \"string\" },\n      \"country\": { \"type\": \"string\" },\n      \"description\": { \"type\": \"string\" },\n      \"rate_per_hour\": { \"type\": \"number\" }, \n      \"hours\": { \"type\": \"number\" },\n      \"current_date\": { \"type\": \"string\"},\n      \"invoice_number\": { \"type\": \"string\" },\n      \"subtotal\": { \n        \"type\": \"number\",\n        \"description\": \"total before tax\"\n      },\n      \"tax\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"rate\": { \"type\": \"number\" },\n          \"amount\": { \"type\": \"number\" }\n      },\n      \"required\": [\"rate\", \"amount\"]\n      },\n      \"grand_total\": {\n        \"type\": \"number\",\n        \"description\": \"final total after tax\"\n      }\n    },\n   \"required\": [\"client_name\"]\n}"
+      },
+      "id": "39eab364-b2e0-488b-bd60-0a5b2f399bb6",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        288,
+        688
+      ],
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=This is the client data.\n{{ $json.results.map(item => JSON.stringify(item,null,2)).join(\"\\n\\n\")}}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are a helpful assistant and you are an Invoice Processing Agent.\n\nYour tasks are:\n\n1. **Validate & Clean Data**\n   - You receive client data digests (client_name, address, email, rate_per_hour, hours).\n   - If \"email\" is missing or blank, return an empty string (\"\") instead of null.\n   - Ensure hours > 0. If not, return: {\"error\": \"Hours must be greater than 0\"}.\n\n2. **Calculate Subtotal**\n   - subtotal = rate_per_hour * hours (rounded to 2 decimals).\n\n3. **Fetch Tax Rate (via Tavily Search Tool)**\n   - Use the Tavily search tool to find the **current tax rate for the client’s country {{ $json.results[0].country }}**.\n   - Query: “current VAT or sales tax rate in {{ $json.results[0].country }}”.\n   - Extract the **numeric percentage** (e.g., 0.17 for 17%) or approximate value according to research.\n\n4. **Calculate Totals**\n   - tax_amount = subtotal * tax_rate\n   - grand_total = subtotal + tax_amount\n   - Round both to 2 decimals.\n\nConstraints: unique topics; no duplicates; no clickbait; be informative.\nOutput only via the required schema (no extra text)."
+        }
+      },
+      "id": "bcb0aa17-250a-4cc6-971e-682aef6536fd",
+      "name": "Invoice Validation Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        32,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "html": "=<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Invoice {{ $json.output.invoice_number }}</title>\n    <style>\n        * {\n            margin: 0;\n            padding: 0;\n            box-sizing: border-box;\n        }\n\n        body {\n            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\n            background-color: #f5f5f5;\n            padding: 40px 20px;\n        }\n\n        .invoice-container {\n            max-width: 800px;\n            margin: 0 auto;\n            background: white;\n            padding: 60px;\n            box-shadow: 0 0 20px rgba(0,0,0,0.1);\n        }\n\n        .header {\n            display: flex;\n            justify-content: space-between;\n            align-items: flex-start;\n            margin-bottom: 60px;\n        }\n\n        .company-info {\n            flex: 1;\n        }\n\n        .company-name {\n            font-size: 28px;\n            font-weight: 300;\n            letter-spacing: 8px;\n            text-transform: uppercase;\n            color: #333;\n            margin-bottom: 5px;\n        }\n\n        .company-tagline {\n            font-size: 11px;\n            letter-spacing: 4px;\n            text-transform: uppercase;\n            color: #999;\n        }\n\n        .invoice-meta {\n            text-align: right;\n            font-size: 13px;\n            color: #666;\n        }\n\n        .invoice-meta div {\n            margin-bottom: 4px;\n        }\n\n        .client-details {\n            margin-bottom: 50px;\n            font-size: 13px;\n            color: #666;\n            line-height: 1.8;\n        }\n\n        .client-details div {\n            margin-bottom: 2px;\n        }\n\n        .items-table {\n            width: 100%;\n            margin-bottom: 40px;\n            border-collapse: collapse;\n        }\n\n        .items-table thead {\n            border-bottom: 1px solid #333;\n        }\n\n        .items-table th {\n            text-align: left;\n            padding: 15px 0;\n            font-size: 12px;\n            font-weight: 600;\n            text-transform: uppercase;\n            letter-spacing: 1px;\n            color: #333;\n        }\n\n        .items-table th:last-child,\n        .items-table td:last-child {\n            text-align: right;\n        }\n\n        .items-table tbody tr {\n            border-bottom: 1px solid #eee;\n        }\n\n        .items-table td {\n            padding: 20px 0;\n            font-size: 13px;\n            color: #666;\n        }\n\n        .totals-section {\n            display: flex;\n            justify-content: space-between;\n            align-items: flex-start;\n            border-top: 1px solid #333;\n            padding-top: 30px;\n        }\n\n        .footer-notes {\n            flex: 1;\n            font-size: 11px;\n            color: #999;\n            line-height: 1.8;\n            max-width: 45%;\n        }\n\n        .totals {\n            text-align: right;\n            min-width: 250px;\n        }\n\n        .total-row {\n            display: flex;\n            justify-content: space-between;\n            padding: 8px 0;\n            font-size: 13px;\n            color: #666;\n        }\n\n        .total-row.grand-total {\n            border-top: 1px solid #333;\n            margin-top: 10px;\n            padding-top: 15px;\n            font-weight: 600;\n            font-size: 14px;\n            color: #333;\n        }\n\n        .total-row .label {\n            margin-right: 40px;\n        }\n\n        .payment-info {\n            margin-top: 50px;\n            padding: 20px;\n            border: 1px solid #ddd;\n            text-align: center;\n            font-size: 12px;\n            color: #666;\n            line-height: 1.8;\n        }\n\n        .company-footer {\n            margin-top: 60px;\n            text-align: center;\n            font-size: 11px;\n            color: #999;\n            text-transform: uppercase;\n            letter-spacing: 2px;\n        }\n\n        .company-footer-details {\n            display: flex;\n            justify-content: center;\n            align-items: center;\n            gap: 30px;\n            margin-top: 10px;\n            font-size: 10px;\n        }\n\n        .company-footer-details span {\n            display: flex;\n            align-items: center;\n            gap: 8px;\n        }\n    </style>\n</head>\n<body>\n    <div class=\"invoice-container\">\n        <div class=\"header\">\n            <div class=\"company-info\">\n                <div class=\"company-name\">The Agentive Corporation</div>\n            </div>\n            <div class=\"invoice-meta\">\n                <div><strong>Date:</strong> {{ $json.output.current_date }}</div>\n                <div><strong>Invoice Number:</strong> {{ $json.output.invoice_number }}</div>\n            </div>\n        </div>\n\n        <div class=\"client-details\">\n            <div>Name: {{$json.output.client_name}}</div>\n            <div>Address: {{$json.output.address}}</div>\n            <div>Country: {{$json.output.country}}</div>\n            <div>Email: {{$json.output.email}}</div>\n        </div>\n\n        <table class=\"items-table\">\n            <thead>\n                <tr>\n                    <th>Description</th>\n                    <th>Rate Per Hour</th>\n                    <th>Hours</th>\n                    <th>Total</th>\n                </tr>\n            </thead>\n            <tbody>\n                <!-- {% for item in invoice.items %} -->\n                <tr>\n                    <td>{{$json.output.description}}</td>\n                    <td>{{$json.output.rate_per_hour}}</td>\n                    <td>{{$json.output.hours}}</td>\n                    <td>{{ $json.output.subtotal }}</td>\n                </tr>\n                <!-- {% endfor %} -->\n            </tbody>\n        </table>\n\n        <div class=\"totals-section\">\n            <div class=\"footer-notes\">\n                Thank you for choosing to work with {{invoice.company.name}}.<br>\n                Let's connect on social media \n                Linkedin:\n                www.linkedin.com/in/shahzain-ali-518b862ba\n\n            </div>\n            <div class=\"totals\">\n                <div class=\"total-row\">\n                    <span class=\"label\">Subtotal</span>\n                    <span>{{ $json.output.subtotal }}</span>\n                </div>\n                <div class=\"total-row\">\n                    <span class=\"label\">Tax (%)</span>\n                    <span>{{ $json.output.tax.rate }}</span>\n                </div>\n                <div class=\"total-row grand-total\">\n                    <span class=\"label\">Total</span>\n                    <span>${{ $json.output.grand_total }}</span>\n                </div>\n            </div>\n        </div>\n\n        <div class=\"payment-info\">\n            Payment is to be made to {{invoice.company.name}} account with your name as a reference.<br>\n            Please pay in full within 7 days of receiving this invoice.<br>\n            <strong>Due Date:</strong> {{invoice.due_date}}<br>\n            <strong>Payment Terms:</strong> {{invoice.payment_terms}}<br>\n            <strong>Notes:</strong> {{invoice.notes}}\n        </div>\n\n        <div class=\"company-footer\">\n              The Agentive Corporation\n            <div class=\"company-footer-details\">\n                <span>📧 alishahzain604@gmail.com</span>\n            </div>\n        </div>\n    </div>\n</body>\n</html>\n"
+      },
+      "id": "e0992f35-8954-489e-af12-f77fa7285dbe",
+      "name": "Generate Invoice HTML",
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        432,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "id-1",
+              "leftValue": "={{ $('Code in JavaScript').item.json.results[0].email }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "id-2",
+              "leftValue": "={{ $('Code in JavaScript').item.json.results[0].email }}",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "ef269b7d-fa97-4bba-8898-2df8b6e1bffe",
+              "leftValue": "",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {
+          "ignoreCase": false
+        }
+      },
+      "id": "fe99ae55-c065-4ab0-bbba-13da33d59137",
+      "name": "Check Email Provided",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        864,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1c_C4JbEoRQxzELFP-AoMyRCWVvRlIO4FGeUyrlQKzSs",
+          "mode": "list",
+          "cachedResultName": "Invoice Form Responses",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c_C4JbEoRQxzELFP-AoMyRCWVvRlIO4FGeUyrlQKzSs/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 894257696,
+          "mode": "list",
+          "cachedResultName": "Form responses 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1c_C4JbEoRQxzELFP-AoMyRCWVvRlIO4FGeUyrlQKzSs/edit#gid=894257696"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -736,
+        368
+      ],
+      "id": "3f3a5883-3a1e-47a1-b9c3-f2fd01dc0440",
+      "name": "Get row(s) in sheet",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "LUtBTlFb3HjWTVqE",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -960,
+        368
+      ],
+      "id": "2becf66b-8cc6-49fc-b4d8-df771c6a684c",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nfunction round2(value) {\n  return Math.round(value * 100) / 100;\n}\n\nconst items = $input.all();\nconst results = [];\n\nfor (let idx = 0; idx < items.length; idx++) {\n  // Main logic\n  const row = items[idx].json;\n\n  const client_name = row[\"Client Name:\"] || row.client_name || row[\"Client Name\"] || \"Unknown Client\";\n  const address = row[\"Address:\"] || row.address || \"\";\n  const email_raw = row[\"Email:\"] || row.email || \"\";\n  const email = email_raw.trim() === \"\" ? \"\" : email_raw.trim();\n  const desc = row[\"Description:\"] || row.description || \"Service\";\n  const rate = parseFloat(row[\"Rate Per Hour\"] || row.rate_per_hour || 0);\n  const hours = parseFloat(row[\"Hours\"] || row.hours || 0);\n  const country = (row[\"Country\"] || row.country || \"Default\").trim();\n\n  // Validation\n  if (hours <= 0) {\n    return [{ json: { error: \"Hours must be greater than 0\", row_number: row.row_number || idx + 1 } }];\n  }\n\n  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$/;\n  if (email && !emailRegex.test(email)) {\n    return [{ json: { error: \"Invalid email format\", email, row_number: row.row_number || idx + 1 } }];\n  }\n  \n  const current_date = new Date().toISOString().split(\"T\")[0];\n  const invoice_number = `INV-${current_date.replace(/-/g, '')}-${String(idx + 1).padStart(3, '0')}`;\n  const subtotal = round2(rate * hours);\n\n  \n  const invoice = {\n      client_name,\n      address,\n      email,\n      country,\n      description: desc, \n      rate_per_hour: rate,\n      hours:hours,\n      current_date: current_date,\n      invoice_number: invoice_number,\n      subtotal: subtotal,\n      \"tax\": { \"rate\": 0, \"amount\": 0 },\n      \"grand_total\": 0\n  };\n\n  results.push(invoice);\n}\n\nreturn [{ \"results\": results }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        384
+      ],
+      "id": "2c953fad-e93e-41f7-badc-49526484f1a6",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "resource": "conversion",
+        "htmlContent": "={{ $json.html }}",
+        "filename": "={{ $('Invoice Validation Agent').item.json.output.client_name }}",
+        "conversionOptions": {
+          "conversionOutput": "file"
+        }
+      },
+      "type": "@pdfgeneratorapi/n8n-nodes-pdf-generator-api.pdfGeneratorApi",
+      "typeVersion": 1,
+      "position": [
+        640,
+        256
+      ],
+      "id": "f26b4d8e-1d49-4e49-a7f6-772f92477742",
+      "name": "Convert HTML content to PDF",
+      "credentials": {
+        "pdfGeneratorApi": {
+          "id": "uZ0MiYYNfjHAWBqF",
+          "name": "PDF Generator account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Invoice Validation Agent').item.json.output.email }}",
+        "subject": "Invoice from The Agentive Corporation",
+        "emailType": "text",
+        "message": "=Dear {{ $('Invoice Validation Agent').item.json.output.client_name }} , please find your invoice attached.",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {
+                "property": "={{ $('Convert HTML content to PDF').item.json.filename }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        720
+      ],
+      "id": "080cceb6-f521-4195-9ae7-f1d506ed7fee",
+      "name": "Send a message",
+      "webhookId": "8d004f18-3b8b-4cd5-8eb2-de26f1656ad2",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "fBj0NYAY1TyqRHdt",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "=Search in Tavily the current sales tax rate for the country {{ $json.results[0].country }}. Return only the numeric rate as a decimal (e.g., 0.18 for 18%).",
+        "query": "=current {{ $json.results[0].current_date }} sales tax or VAT rate in {{ $json.results[0].country }}",
+        "options": {
+          "search_depth": "advanced",
+          "max_results": 2
+        }
+      },
+      "type": "@tavily/n8n-nodes-tavily.tavilyTool",
+      "typeVersion": 1,
+      "position": [
+        96,
+        704
+      ],
+      "id": "785350f7-3960-453f-9e3e-8ffe702d3d74",
+      "name": "Search in Tavily",
+      "credentials": {
+        "tavilyApi": {
+          "id": "OoHEBXjMwm1FSA5m",
+          "name": "Tavily account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -528,
+        368
+      ],
+      "id": "e69c3693-4890-4f23-96f6-b6de83314319",
+      "name": "Loop Over Items"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Gemini Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Invoice Validation Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Invoice Validation Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Invoice Validation Agent": {
+      "main": [
+        [
+          {
+            "node": "Generate Invoice HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Invoice HTML": {
+      "main": [
+        [
+          {
+            "node": "Convert HTML content to PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Email Provided": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Invoice Validation Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert HTML content to PDF": {
+      "main": [
+        [
+          {
+            "node": "Check Email Provided",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search in Tavily": {
+      "ai_tool": [
+        [
+          {
+            "node": "Invoice Validation Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a994c9f7-7f76-4d17-afbe-11e15338391a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "dad5c84a16dc80b596d94f26d02c2c5880ca947ce733b48de8e7684a5b0862f0"
+  },
+  "id": "MuypQBdIxNLc5Yfd",
+  "tags": []
+}
