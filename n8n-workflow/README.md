@@ -42,7 +42,8 @@ This multi-agent setup ensures accuracy and efficiency in invoice generation.
 - **AI Agent System Message**: You are a helpful assistant and an Invoice Processing Agent. Tasks: Validate & Clean Data, Calculate Subtotal, Fetch Tax Rate, Calculate Totals.
 - **User Message**: This is the client data. {{ $json.results.map(item => JSON.stringify(item,null,2)).join("\n\n")}}
 - **Structured Output Parser Schema**:  
-```{
+```
+{
     "type": "object",
     "additionalProperties": false,
     "properties": {
@@ -67,7 +68,8 @@ This multi-agent setup ensures accuracy and efficiency in invoice generation.
         "grand_total": { "type": "number", "description": "final total after tax" }
     },
     "required":["client_name"]
-}```
+}
+```
 
 
 ## Usage
