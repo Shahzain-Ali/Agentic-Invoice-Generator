@@ -1,4 +1,4 @@
-# N8n Invoice Workflow
+# n8n Invoice Workflow
 
 This n8n workflow is an agentic AI-powered invoice generator that automates validation, HTML template creation, PDF conversion, and email sending. It uses multi-agent collaboration with Google Gemini, Tavily search, and structured output parsing for efficient billing automation.
 
